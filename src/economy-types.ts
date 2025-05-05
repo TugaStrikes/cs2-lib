@@ -16,6 +16,8 @@ export type CS2ItemTeamValues = EnumValues<typeof CS2ItemTeam>;
 
 export const CS2ItemType = {
     Agent: "agent",
+    WeaponComponent: "weapon_component",
+    Blueprint: "blueprint",
     Collectible: "collectible",
     Container: "case",
     Gloves: "glove",
@@ -28,7 +30,7 @@ export const CS2ItemType = {
     Sticker: "sticker",
     Stub: "stub",
     Tool: "tool",
-    Weapon: "weapon"
+    Weapon: "weapon",
 } as const;
 
 export type CS2ItemTypeValues = EnumValues<typeof CS2ItemType>;
@@ -47,7 +49,8 @@ export const CS2ContainerType = {
     WeaponCase: 0,
     StickerCapsule: 1,
     GraffitiBox: 2,
-    SouvenirCase: 3
+    SouvenirCase: 3,
+    BlueprintCase: 4
 } as const;
 
 export type CS2ContainerTypeValues = EnumValues<typeof CS2ContainerType>;
@@ -58,6 +61,7 @@ export interface CS2Item {
     baseId?: number | undefined;
     category?: string | undefined;
     collection?: string | undefined;
+    componentName?: string | undefined;
     containerType?: CS2ContainerTypeValues | undefined;
     contents?: number[] | undefined;
     def?: number | undefined;
@@ -70,6 +74,9 @@ export interface CS2Item {
     legacy?: boolean | undefined;
     model?: string | undefined;
     rarity?: CS2RarityColorValues | undefined;
+    parentPaintkitId?: number | undefined;
+    possibleSouvenirStickers?: number[] | undefined;
+    guaranteedSouvenirSticker?: number | undefined;
     specials?: number[] | undefined;
     specialsImage?: boolean | undefined;
     statTrakless?: boolean | undefined;
@@ -108,7 +115,20 @@ export interface CS2UnlockedItem {
         seed: number | undefined;
         statTrak: number | undefined;
         wear: number | undefined;
+        sellable?: boolean | undefined;
+        tradable?: boolean | undefined;
+        recyclable?: boolean | undefined;
     };
+    stickers: Record<
+        string,
+        {
+            id: number;
+            wear?: number;
+            x?: number;
+            y?: number;
+        }
+    > | undefined;
+    souvenir: boolean | undefined;
     id: number;
     rarity: CS2RaritySoundNameValues;
     special: boolean;

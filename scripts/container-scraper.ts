@@ -13,7 +13,7 @@ const MELEE_OR_GLOVES_TYPES: CS2ItemTypeValues[] = [CS2ItemType.Melee, CS2ItemTy
 export class ContainerScraper {
     private specialsData = readJson<Record<string, string[]>>("assets/data/container-specials.json", {});
     private specials: Record<string, number[] | undefined> = {};
-
+    private allMelee: number[] = [];
     async run() {
         const containerUrlRE = /"(https:\/\/csgostash\.com\/case\/\d+\/[^"]+)"/g;
         const url = "https://csgostash.com";
@@ -65,18 +65,29 @@ export class ContainerScraper {
 
     populate(items: (readonly [string, CS2ExtendedItem])[]) {
         const lookup: Record<string, number> = {};
+        const lookupMelee: Record<string, number> = {};
         for (const [name, item] of items) {
             if (MELEE_OR_GLOVES_TYPES.includes(item.type)) {
                 lookup[item.base ? `${name} | ★ (Vanilla)` : name] = item.id;
             }
         }
+        for (const [name, item] of items) {
+            if (item.type === CS2ItemType.Melee) {
+                lookupMelee[item.base ? `${name} | ★ (Vanilla)` : name] = item.id;
+            }
+        }
         for (const [containerName, specials] of Object.entries(this.specialsData)) {
             this.specials[containerName] = specials.map((name) => ensure(lookup[name]));
+            this.allMelee = this.allMelee.concat(specials.filter((name) => lookupMelee[name]).map((name) => ensure(lookup[name])));
         }
+        console.log(this.allMelee)
     }
 
     getSpecials(containerName: string) {
         return this.specials[containerName];
+    }
+    getAllMelee() {
+        return this.allMelee
     }
 }
 

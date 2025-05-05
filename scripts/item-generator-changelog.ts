@@ -8,10 +8,12 @@ import { CS2Item } from "../src/economy-types";
 import { CS2_ITEMS } from "../src/items";
 import { ensure } from "../src/utils";
 import { readJson, shouldRun, write } from "./utils";
+import {add} from "lodash-es";
 
-const repoBaseUrl = "https://raw.githubusercontent.com/ianlucas/cs2-lib/main";
+const repoBaseUrl = "https://raw.githubusercontent.com/driscode/cs2-lib/main";
 
 async function fetchFromRepo<T = any>(path: string): Promise<T> {
+    console.log(`${repoBaseUrl}/${path}`)
     return await (await fetch(`${repoBaseUrl}/${path}`)).json();
 }
 
@@ -41,6 +43,8 @@ function isDifferent(a: any, b: any) {
         }
         return false;
     }
+    console.log(b)
+    console.log(a)
     return a !== b;
 }
 
@@ -82,7 +86,7 @@ async function main() {
         (await fetchFromRepo<CS2Item[]>("assets/data/items.json")).map((item) => [item.id, item])
     );
     const localItems = new Map(CS2_ITEMS.map((item) => [item.id, item]));
-    const repoEnglish = await fetchFromRepo("assets/translations/english.json");
+    const repoEnglish = await fetchFromRepo("assets/localizations/items-english.json");
     const localEnglish = readJson<any>("assets/translations/english.json");
 
     const addedKeys = Array.from(localItems.keys()).filter((key) => !repoItems.has(key));
@@ -92,6 +96,8 @@ async function main() {
     if (addedKeys.length > 0) {
         report += "# Added Items\n\n";
         for (const addedKey of addedKeys) {
+            console.log(addedKey)
+            console.log(localEnglish[addedKey])
             const name = ensure(localEnglish[addedKey]).name;
             report += `* ${name} (id: ${addedKey})\n`;
         }

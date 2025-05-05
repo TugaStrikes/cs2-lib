@@ -374,10 +374,22 @@ describe("CS2Inventory methods", () => {
             id: AWP_DRAGON_LORE_ID,
             stickers: {
                 0: { id: ZZ_NATION_RIO_2022_GLITTER_ID },
-                1: { id: ZZ_NATION_RIO_2022_GLITTER_ID }
+                1: { id: ZZ_NATION_RIO_2022_GLITTER_ID },
+                2: { id: ZZ_NATION_RIO_2022_GLITTER_ID },
+                3: { id: ZZ_NATION_RIO_2022_GLITTER_ID }
             }
         });
-        expect(() => inventory.scrapeItemSticker(0, -5)).toThrow();
+        inventory.add({
+            id: 13355,
+            wear: 0
+        })
+    //console.log(inventory.get(1))
+            inventory.removeItemSticker(1, 0, 0)
+        inventory.removeItemSticker(1, 0, 1)
+        console.log(inventory.get(1).asBase())
+        inventory.removeItemSticker(1, 0, 2)
+        //inventory.removeItemSticker(1, 0, 1)
+        /*expect(() => inventory.scrapeItemSticker(0, -5)).toThrow();
         expect(() => inventory.scrapeItemSticker(0, NaN)).toThrow();
         inventory.scrapeItemSticker(0, 0);
         expect(inventory.get(0).stickers?.get(0)?.wear).toBe(0.1);

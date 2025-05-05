@@ -13,6 +13,16 @@ export type CS2Language = {
 
 export type CS2GameItems = {
     items_game: {
+        keychain_definitions: {
+            [keychainIndex: string]: {
+                name: string;
+                loc_name: string;
+                loc_description: string;
+                item_rarity: string;
+                image_inventory: string;
+                pedestal_display_model: string;
+            }
+        };
         alternate_icons2: {
             weapon_icons: {
                 [weaponIconKey: string]: {
@@ -59,6 +69,7 @@ export type CS2GameItems = {
                     };
                     ["pedestal display model"]?: string;
                     ["tournament event id"]?: {
+                        attribute_class?: string;
                         value: string;
                     };
                 };
@@ -87,16 +98,7 @@ export type CS2GameItems = {
                 };
                 used_by_classes?: Record<string, string>;
                 vo_prefix?: string;
-            };
-        };
-        keychain_definitions: {
-            [keychainIndex: string]: {
-                name: string;
-                loc_name: string;
-                loc_description: string;
-                item_rarity: string;
-                image_inventory: string;
-                pedestal_display_model: string;
+                max_uses?: string;
             };
         };
         music_definitions: {
@@ -155,8 +157,19 @@ export type CS2GameItems = {
                 patch_material?: string;
                 sticker_material: string;
                 tournament_event_id?: string;
+                tournament_team_id?: string;
             };
         };
+        weapon_sets: {
+            [weaponSetIndex: string]: {
+                parent_paintkit_id: string;
+                image_dir: string;
+                component_quantity?: string;
+                component_list: {
+                    [component_index: string]: string;
+            };
+        };
+        }
     };
 };
 
@@ -164,6 +177,8 @@ export type CS2ExtendedItem = CS2Item & {
     className?: string;
     descToken?: string;
     nameToken?: string;
+    uses?: number;
+    maxUses?: number;
 };
 
 export type CS2ExportItem = CS2Item & {

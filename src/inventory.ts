@@ -15,6 +15,7 @@ import {
     CS2_MIN_KEYCHAIN_SEED,
     CS2_MIN_STICKER_WEAR,
     CS2_MIN_WEAR,
+    CS2_AIRBLOWER_USES_FACTOR,
     CS2_STICKER_WEAR_FACTOR
 } from "./economy-constants.js";
 import { CS2ItemType, type CS2ItemTypeValues, type CS2UnlockedItem } from "./economy-types.js";
@@ -36,6 +37,7 @@ export interface CS2BaseInventoryItem {
             seed?: number;
             x?: number;
             y?: number;
+            z?: number;
         }
     >;
     nameTag?: string;
@@ -52,9 +54,17 @@ export interface CS2BaseInventoryItem {
             y?: number;
         }
     >;
+    souvenir?: boolean;
     storage?: Record<number, CS2BaseInventoryItem>;
+    sellable?: boolean;
+    tradable?: boolean;
+    recyclable?: boolean;
     updatedAt?: number;
     wear?: number;
+    price?: number; 
+    userId?: string;
+    uses?: number;
+    maxUses?: number;
 }
 
 export interface CS2InventoryData {
@@ -75,7 +85,7 @@ export interface CS2InventorySpec extends CS2InventoryOptions {
 export const CS2_INVENTORY_VERSION = 1;
 export const CS2_INVENTORY_TIMESTAMP = 1707696138408;
 // prettier-ignore
-export const CS2_INVENTORY_EQUIPPABLE_ITEMS: CS2ItemTypeValues[] = [CS2ItemType.Agent, CS2ItemType.Collectible, CS2ItemType.Gloves, CS2ItemType.Graffiti, CS2ItemType.Melee, CS2ItemType.MusicKit, CS2ItemType.Weapon];
+export const CS2_INVENTORY_EQUIPPABLE_ITEMS: CS2ItemTypeValues[] = [CS2ItemType.Agent, CS2ItemType.Collectible, CS2ItemType.Gloves, CS2ItemType.Graffiti, CS2ItemType.Keychain, CS2ItemType.Melee, CS2ItemType.MusicKit, CS2ItemType.Weapon];
 
 export function getTimestamp(): number {
     return Math.ceil((Date.now() - CS2_INVENTORY_TIMESTAMP) / 1000);
@@ -128,7 +138,7 @@ export class CS2Inventory {
             assert(slot >= 0 && slot <= CS2_MAX_STICKERS - 1);
             this.economy.getById(stickerId).expectSticker();
             if (wear !== undefined) {
-                assert(Number.isFinite(wear));
+                assert(!Number.isNaN(wear));
                 assert(String(wear).length <= String(CS2_STICKER_WEAR_FACTOR).length);
                 assert(wear >= CS2_MIN_STICKER_WEAR && wear <= CS2_MAX_STICKER_WEAR);
             }
@@ -159,8 +169,7 @@ export class CS2Inventory {
             assert(slot >= 0 && slot <= CS2_MAX_KEYCHAINS - 1);
             this.economy.getById(keychainId).expectKeychain();
             if (seed !== undefined) {
-                assert(Number.isFinite(seed));
-                assert(Number.isInteger(seed));
+                assert(!Number.isNaN(seed));
                 assert(seed >= CS2_MIN_KEYCHAIN_SEED && seed <= CS2_MAX_KEYCHAIN_SEED);
             }
             if (x !== undefined) {
@@ -209,7 +218,7 @@ export class CS2Inventory {
         seed,
         statTrak,
         stickers,
-        wear
+        wear,
     }: CS2BaseInventoryItem): void {
         const item = this.economy.getById(id);
         this.economy.validateWear(wear, item);
@@ -293,8 +302,7 @@ export class CS2Inventory {
         this.items.delete(stickerUid);
         this.add({
             id,
-            stickers: { [slot]: { id: sticker.id } }
-        });
+            stickers: { [slot]: { id: sticker.id }}});
         return this;
     }
 
@@ -337,17 +345,19 @@ export class CS2Inventory {
         return this;
     }
 
-    unlockContainer(unlockedItem: CS2UnlockedItem, containerUid: number, keyUid?: number): this {
+    unlockContainer(unlockedItem: CS2UnlockedItem, containerUid: number, keyUid?: number, validateUnlocked: boolean = true, validateKey: boolean = true): this {
         const containerItem = this.get(containerUid);
-        this.economy.validateUnlockedItem(containerItem, unlockedItem);
+        if (validateUnlocked) this.economy.validateUnlockedItem(containerItem, unlockedItem);
         const keyItem = keyUid !== undefined ? this.get(keyUid) : undefined;
-        this.economy.validateContainerAndKey(containerItem, keyItem);
+	if (validateKey) this.economy.validateContainerAndKey(containerItem, keyItem);
         this.items.delete(containerUid);
         if (keyUid !== undefined) {
             this.items.delete(keyUid);
         }
         this.add({
             ...unlockedItem.attributes,
+            stickers: unlockedItem.stickers,
+            souvenir: unlockedItem.souvenir,
             id: unlockedItem.id,
             updatedAt: getTimestamp()
         });
@@ -463,6 +473,26 @@ export class CS2Inventory {
         return this;
     }
 
+    applyItemKeychain(targetUid: number, keychainUid: number, slot: number, coords: {x: number; y: number; z: number}): this {
+        assert(slot >= 0 && slot <= CS2_MAX_PATCHES - 1);
+        const target = this.get(targetUid);
+        const keychain = this.get(keychainUid);
+        assert(target.hasKeychains());
+        keychain.expectKeychain();
+        target.keychains ??= new Map();
+        assert(target.keychains.get(slot) === undefined);
+        target.keychains.set(slot, {
+            id: keychain.id,
+            seed: keychain.seed,
+            x: coords.x,
+            y: coords.y,
+            z: coords.z,
+        });
+        target.updatedAt = getTimestamp();
+        this.items.delete(keychainUid);
+        return this;
+    }
+
     scrapeItemSticker(targetUid: number, slot: number): this {
         const target = this.get(targetUid);
         assert(target.stickers !== undefined);
@@ -477,6 +507,29 @@ export class CS2Inventory {
             return this;
         }
         sticker.wear = nextWear;
+        target.updatedAt = getTimestamp();
+        return this;
+    }
+
+    removeItemSticker(airBlowerToolUid: number, targetUid: number, slot: number): this {
+        const airBlower = this.get(airBlowerToolUid).expectAirblower();
+        const target = this.get(targetUid);
+        assert(target.hasAirblower());
+        assert(target.stickers !== undefined);
+
+        const sticker = ensure(target.stickers.get(slot));
+
+        target.stickers.delete(slot);
+        const nextWear = float((airBlower.uses ?? 0) + CS2_AIRBLOWER_USES_FACTOR);
+        if (nextWear >= airBlower.getMaximumUses()) {
+            this.remove(airBlowerToolUid)
+        } else {
+            airBlower.uses = nextWear
+        }
+        if (target.stickers.size === 0) {
+            target.stickers = undefined;
+        }
+        this.add(sticker)
         target.updatedAt = getTimestamp();
         return this;
     }
@@ -500,6 +553,18 @@ export class CS2Inventory {
         target.patches.delete(slot);
         if (target.patches.size === 0) {
             target.patches = undefined;
+        }
+        target.updatedAt = getTimestamp();
+        return this;
+    }
+
+    removeItemKeychain(targetUid: number, slot: number): this {
+        const target = this.get(targetUid);
+        assert(target.keychains !== undefined);
+        assert(target.keychains.get(slot) !== undefined);
+        target.keychains.delete(slot);
+        if (target.keychains.size === 0) {
+            target.keychains = undefined;
         }
         target.updatedAt = getTimestamp();
         return this;
@@ -594,8 +659,15 @@ export class CS2InventoryItem
     statTrak: number | undefined;
     stickers: Map<number, RecordValue<CS2BaseInventoryItem["stickers"]>> | undefined;
     storage: Map<number, CS2InventoryItem> | undefined;
+    souvenir: boolean | undefined;
+    sellable: boolean | undefined;
+    tradable: boolean | undefined;
+    recyclable: boolean | undefined;
     updatedAt: number | undefined;
     wear: number | undefined;
+    uses: number | undefined;
+    price: number | undefined; 
+    userId: string | undefined;
 
     private assign({ keychains, patches, stickers, storage }: Partial<CS2BaseInventoryItem>): void {
         if (patches !== undefined) {
@@ -717,6 +789,14 @@ export class CS2InventoryItem
         return this.stickers?.get(slot)?.wear ?? CS2_MIN_STICKER_WEAR;
     }
 
+    getPrice(): number {
+        return this.price ?? 0;
+    }
+
+    getUserId(): string {
+        return this.userId ?? "1";
+    }
+
     getKeychainSeed(slot: number): number {
         return this.keychains?.get(slot)?.seed ?? CS2_MIN_KEYCHAIN_SEED;
     }
@@ -743,7 +823,15 @@ export class CS2InventoryItem
                     ? Object.fromEntries(Array.from(this.storage).map(([key, value]) => [key, value.asBase()]))
                     : undefined,
             updatedAt: this.updatedAt,
-            wear: this.wear
+            wear: this.wear,
+            uses: this.uses,
+            maxUses: this.maxUses,
+            price: this.price,
+            userId: this.userId,
+            sellable: this.sellable !== undefined ? this.sellable : undefined,
+            tradable: this.tradable !== undefined ? this.tradable : undefined,
+            recyclable: this.recyclable !== undefined ? this.recyclable : undefined,
+            souvenir: this.souvenir !== undefined ? this.souvenir : undefined,
         } satisfies Interface<CS2BaseInventoryItem>;
     }
 }

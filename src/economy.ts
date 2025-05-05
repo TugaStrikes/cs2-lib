@@ -40,7 +40,11 @@ import {
     CS2_TEAMS_BOTH,
     CS2_TEAMS_CT,
     CS2_TEAMS_T,
-    CS2_WEAR_FACTOR
+    CS2_WEAR_FACTOR,
+    CS2_AIRBLOWABLE_ITEMS,
+    CS2_AIRBLOWER_PREMIUM_TOOL_DEF,
+    CS2_AIRBLOWER_FREE_TOOL_DEF,
+    CS2_MAX_USES
 } from "./economy-constants.js";
 import {
     CS2RarityColorName,
@@ -58,10 +62,10 @@ import {
     CS2ContainerType,
     type CS2ContainerTypeValues,
     type CS2Item,
-    CS2ItemTeam,
-    type CS2ItemTeamValues,
     type CS2ItemTranslation,
     type CS2ItemTranslationMap,
+    CS2ItemTeam,
+    type CS2ItemTeamValues,
     CS2ItemType,
     type CS2ItemTypeValues,
     CS2ItemWear,
@@ -70,6 +74,7 @@ import {
 } from "./economy-types.js";
 import { type CS2TeamValues } from "./teams.js";
 import { type Interface, assert, compare, ensure, safe } from "./utils.js";
+import type {CS2InventoryItem} from "./inventory.js";
 
 type CS2EconomyItemPredicate = Partial<CS2EconomyItem> & { team?: CS2TeamValues };
 
@@ -235,6 +240,40 @@ export class CS2EconomyInstance {
         return Array.from(this.stickers);
     }
 
+    resolveItemImage(baseUrl: string, item: number | CS2EconomyItem, wear?: number): string {
+        item = this.get(item);
+        const { id, image } = item;
+        if (item.hasWear() && wear !== undefined) {
+            switch (true) {
+                case wear < 1 / 3:
+                    return `${baseUrl}/${id}_light.png`;
+                case wear < 2 / 3:
+                    return `${baseUrl}/${id}_medium.png`;
+                default:
+                    return `${baseUrl}/${id}_heavy.png`;
+            }
+        }
+        if (image === undefined) {
+            return `${baseUrl}/${id}.png`;
+        }
+        if (image.charAt(0) === "/") {
+            return `${baseUrl}${image}`;
+        }
+        return image;
+    }
+
+    resolveCollectionImage(baseUrl: string, item: number | CS2EconomyItem): string {
+        const { collection } = this.get(item);
+        return `${baseUrl}/${ensure(collection)}.png`;
+    }
+
+    resolveContainerSpecialsImage(baseUrl: string, item: number | CS2EconomyItem): string {
+        item = this.get(item).expectContainer();
+        const { id, specialsImage, rawSpecials } = item;
+        assert(rawSpecials);
+        return specialsImage ? `${baseUrl}/${id}_rare.png` : `${baseUrl}/default_rare_item.png`;
+    }
+
     validateContainerAndKey(containerItem: number | CS2EconomyItem, keyItem?: number | CS2EconomyItem): boolean {
         containerItem = this.get(containerItem);
         containerItem.expectContainer();
@@ -279,6 +318,7 @@ export class CS2EconomyItem
     collection: string | undefined;
     collectionDesc: string | undefined;
     collectionName: string | undefined;
+    componentName: string | undefined;
     containerType: CS2ContainerTypeValues | undefined;
     def: number | undefined;
     desc: string | undefined;
@@ -292,6 +332,9 @@ export class CS2EconomyItem
     model: string | undefined;
     name: string = null!;
     rarity: CS2RarityColorValues = null!;
+    parentPaintkitId: number | undefined;
+    possibleSouvenirStickers: number[] | undefined;
+    guaranteedSouvenirSticker: number | undefined;
     specialsImage: boolean | undefined;
     statTrakless: boolean | undefined;
     statTrakOnly: boolean | undefined;
@@ -304,6 +347,7 @@ export class CS2EconomyItem
     voPrefix: string | undefined;
     wearMax: number | undefined;
     wearMin: number | undefined;
+    maxUses: number | undefined;
 
     private _contents: number[] | undefined;
     private _specials: number[] | undefined;
@@ -441,6 +485,7 @@ export class CS2EconomyItem
         return this.type === CS2ItemType.Graffiti;
     }
 
+   
     isMelee(): boolean {
         return this.type === CS2ItemType.Melee;
     }
@@ -481,6 +526,13 @@ export class CS2EconomyItem
         return this.isTool() && this.def === CS2_NAMETAG_TOOL_DEF;
     }
 
+    isAirblowerFree(): boolean {
+        return this.isTool() && this.def === CS2_AIRBLOWER_FREE_TOOL_DEF;
+    }
+    isAirblowerPremium(): boolean {
+        return this.isTool() && this.def === CS2_AIRBLOWER_PREMIUM_TOOL_DEF;
+    }
+
     isStatTrakSwapTool(): boolean {
         return this.isTool() && this.def === CS2_STATTRAK_SWAP_TOOL_DEF;
     }
@@ -519,6 +571,11 @@ export class CS2EconomyItem
         return this;
     }
 
+    expectAirblower(): this {
+        assert(this.isAirblowerFree() || this.isAirblowerPremium());
+        return this;
+    }
+
     expectStatTrakSwapTool(): this {
         assert(this.isStatTrakSwapTool());
         return this;
@@ -535,7 +592,7 @@ export class CS2EconomyItem
     }
 
     hasWear(): boolean {
-        return CS2_PAINTABLE_ITEMS.includes(this.type) && !this.free && this.index !== 0;
+        return (CS2_PAINTABLE_ITEMS.includes(this.type) && !this.free && this.index !== 0) || this.isAirblowerFree() || this.isAirblowerPremium();
     }
 
     hasSeed(): boolean {
@@ -556,6 +613,10 @@ export class CS2EconomyItem
 
     hasNametag(): boolean {
         return CS2_NAMETAGGABLE_ITEMS.includes(this.type) || this.isStorageUnit();
+    }
+
+    hasAirblower(): boolean {
+        return CS2_AIRBLOWABLE_ITEMS.includes(this.type);
     }
 
     hasStatTrak(): boolean {
@@ -657,6 +718,9 @@ export class CS2EconomyItem
         return this.isKeychain() ? CS2_MAX_KEYCHAIN_SEED : CS2_MAX_SEED;
     }
 
+    getMaximumUses(): number {
+        return this.maxUses ?? CS2_MAX_USES;
+    }
     groupContents(): Record<string, CS2EconomyItem[]> {
         const items: Record<string, CS2EconomyItem[]> = {};
         const specials = this.specials;
@@ -712,8 +776,24 @@ export class CS2EconomyItem
         }
         const stack = ensure(contents[rollRarity]);
         const unlocked = ensure(stack[Math.floor(Math.random() * stack.length)]);
-        const hasStatTrak = this.statTrakless !== true;
+        const hasStatTrak = this.statTrakless !== true && this.possibleSouvenirStickers === undefined;
         const alwaysStatTrak = this.statTrakOnly === true;
+        let stickers = this.possibleSouvenirStickers !== undefined && this.guaranteedSouvenirSticker !== undefined ? new Map(
+            Object.entries(getRandom(this.possibleSouvenirStickers, randomInt(2, 4)))
+                .filter(([, id]) => this.economy.items.has(id))
+                .map(([slot, sticker]) => [parseInt(slot, 10), {
+                    id: sticker,
+                }])) : undefined
+
+
+        if (stickers !== undefined) {
+            const slotTournamentSticker = randomInt(0, stickers?.size-1)
+            if (stickers?.get(slotTournamentSticker) !== undefined) {
+                const sticker = stickers?.get(slotTournamentSticker)
+                if (sticker !== undefined) sticker.id = this.guaranteedSouvenirSticker
+            }
+        }
+
         return {
             attributes: {
                 containerId: this.id,
@@ -731,13 +811,28 @@ export class CS2EconomyItem
                               .toString()
                               .substring(0, CS2_WEAR_FACTOR.toString().length)
                       )
-                    : undefined
+                    : undefined,
             },
+            stickers: stickers !== undefined ? Object.fromEntries(stickers) : undefined,
+            souvenir: this.possibleSouvenirStickers !== undefined ? true : undefined,
             id: unlocked.id,
             rarity: CS2RaritySoundName[unlocked.rarity],
             special: rollRarity === "special"
         };
     }
+}
+function getRandom(arr: number[], n: number) {
+    var result = new Array(n),
+        len = arr.length,
+        taken = new Array(len);
+    if (n > len)
+        throw new RangeError("getRandom: more elements taken than available");
+    while (n--) {
+        var x = Math.floor(Math.random() * len);
+        result[n] = arr[x in taken ? taken[x] : x];
+        taken[x] = --len in taken ? taken[len] : len;
+    }
+    return result;
 }
 
 export const CS2Economy = new CS2EconomyInstance();
