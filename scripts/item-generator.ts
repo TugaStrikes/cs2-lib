@@ -187,25 +187,30 @@ export class ItemGenerator {
                 (await readdir(RESOURCE_PATH))
                     .map((file) => {
                         const matches = file.match(LANGUAGE_FILE_RE);
+                        console.log(file)
                         return matches !== null ? ([file, matches[1]] as const) : undefined;
                     })
                     .filter(isNotUndefined)
                     .filter(([_, language]) => include === undefined || include.includes(language))
                     .map(async ([file, language]) => {
                         this.itemTranslationByLanguage[language] = {};
+                        let langTokens = CS2KeyValues.parse<CS2Language>(await readFile(resolve(RESOURCE_PATH, file), "utf-8"))
+                            .lang.Tokens
+                        let customTokens = CS2KeyValues.parse<CS2Language>(await readFile(resolve(RESOURCE_PATH, 'csgo_custom.txt'), "utf-8"))
+                            .lang.Tokens
+                        let baseTokens = Object.entries({...langTokens, ...customTokens}).reduce((tokens, [key, value]) => {
+                            key = key.toLowerCase();
+                            assert(tokens[key] === undefined);
+                            tokens[key] = value;
+                            return tokens;
+                        }, {})
+                        console.log(language)
                         return [
                             language,
-                            Object.entries(
-                                CS2KeyValues.parse<CS2Language>(await readFile(resolve(RESOURCE_PATH, file), "utf-8"))
-                                    .lang.Tokens
-                            ).reduce((tokens, [key, value]) => {
-                                key = key.toLowerCase();
-                                assert(tokens[key] === undefined);
-                                tokens[key] = value;
-                                return tokens;
-                            }, {})
+                            baseTokens
                         ];
                     })
+
             )
         );
         const { length } = Object.keys(this.csgoTranslationByLanguage);
