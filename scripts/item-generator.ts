@@ -103,6 +103,7 @@ export class DefaultGraffitiManager {
 
 export class ItemGenerator {
     gameItemsAsText: string;
+    gameItemsCustomAsText: string;
     gameItems: CS2GameItems["items_game"] = null!;
     gameItemsCustom: CS2GameItems["items_game"] = null!;
 
@@ -163,8 +164,9 @@ export class ItemGenerator {
         await this.parseBaseWeapons();
         this.parseBaseMelees();
         this.parseBaseGloves();
-        await this.parseSkins();
         this.parseCustomWeaponSets();
+        await this.parseCustomSkins();
+        await this.parseSkins();
         this.parseMusicKits();
         this.parseStickers();
         this.parseKeychains();
@@ -176,7 +178,6 @@ export class ItemGenerator {
         this.parseCustomTools();
         this.parseContainers();
         this.parseCustomContainers();
-        this.parseCustomSkins();
         this.persist();
     }
 
@@ -221,7 +222,8 @@ export class ItemGenerator {
 
 
     async readItemsGameCustomFile() {
-        this.gameItemsCustom = CS2KeyValues.parse<CS2GameItems>(await readFile(ITEMS_GAME_CUSTOM_PATH, "utf-8")).items_game;
+        this.gameItemsCustomAsText = await readFile(ITEMS_GAME_CUSTOM_PATH, "utf-8");
+        this.gameItemsCustom = CS2KeyValues.parse<CS2GameItems>(this.gameItemsCustomAsText).items_game;
 
         this.paintKitsRaritiesColorHexCustom = Object.fromEntries(
             Object.entries(this.gameItemsCustom.paint_kits_rarity).map(([paintKitKey, rarityKey]) => {
@@ -464,7 +466,8 @@ export class ItemGenerator {
                     continue;
                 }
                 const itemKey = `[${paintKit.className}]${baseItem.className}`;
-                if (baseItem.type === CS2ItemType.Weapon && !this.gameItemsAsText.includes(itemKey)) {
+                console.log(itemKey)
+                if (baseItem.type === CS2ItemType.Weapon && !this.gameItemsCustomAsText.includes(itemKey)) {
                     continue;
                 }
                 const id = this.itemIdentifierManager.get(`paint_${baseItem.def}_${paintKit.index}`);
