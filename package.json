@@ -1,9 +1,9 @@
 {
-    "name": "@TugaStrikes/cs2-lib",
+    "name": "@tugastrikes/cs2-lib",
     "description": "A TypeScript library for manipulating Counter-Strike 2 data",
     "license": "MIT",
     "author": "Ian Lucas",
-    "repository": "TugaStrikes/cs2-lib",
+    "repository": "tugastrikes/cs2-lib",
     "type": "module",
     "main": "dist/index.js",
     "exports": {
