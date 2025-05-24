@@ -10,7 +10,7 @@ import { ensure } from "../src/utils";
 import { readJson, shouldRun, write } from "./utils";
 import {add} from "lodash-es";
 
-const repoBaseUrl = "https://raw.githubusercontent.com/driscode/cs2-lib/main";
+const repoBaseUrl = "https://raw.githubusercontent.com/tugastrikes/cs2-lib/main";
 
 async function fetchFromRepo<T = any>(path: string): Promise<T> {
     console.log(`${repoBaseUrl}/${path}`)
@@ -86,7 +86,7 @@ async function main() {
         (await fetchFromRepo<CS2Item[]>("assets/data/items.json")).map((item) => [item.id, item])
     );
     const localItems = new Map(CS2_ITEMS.map((item) => [item.id, item]));
-    const repoEnglish = await fetchFromRepo("assets/localizations/items-english.json");
+    const repoEnglish = await fetchFromRepo("assets/translations/english.json");
     const localEnglish = readJson<any>("assets/translations/english.json");
 
     const addedKeys = Array.from(localItems.keys()).filter((key) => !repoItems.has(key));
