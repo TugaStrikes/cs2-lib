@@ -23,7 +23,9 @@ import {
 } from "../src/economy-types.js";
 import { CS2KeyValues } from "../src/keyvalues.js";
 import { CS2KeyValues3 } from "../src/keyvalues3.js";
+
 import { assert, ensure, fail, isNotUndefined } from "../src/utils.js";
+
 import { ContainerScraper } from "./container-scraper.js";
 import { CS2_CSGO_PATH } from "./env.js";
 import { ExternalCS2 } from "./external-cs2.js";
@@ -680,13 +682,17 @@ export class ItemGenerator {
         }
     }
 
-    private parseKeychains() {
+    private async parseKeychains() {
         warning("Parsing keychains...");
         const baseId = this.createStub("keychain", "#CSGO_Tool_Keychain_Desc");
         for (const [index, { name, loc_name, loc_description, item_rarity, image_inventory }] of Object.entries(
             this.gameItems.keychain_definitions
         )) {
             if (!this.hasTranslation(loc_name)) {
+                continue;
+            }
+            if (!(await this.hasImage(image_inventory))) {
+                console.log(`Unable to find inventory image for ${image_inventory} (index: ${index})`);
                 continue;
             }
             const id = this.itemIdentifierManager.get(`keychain_${index}`);
@@ -1415,6 +1421,9 @@ export class ItemGenerator {
         return undefined;
     }
 
+    private async hasImage(path: string) {
+        return await exists(resolve(IMAGES_PATH, `${path}_png.png`.toLowerCase()));
+    }
     private getBaseImage(id: number, className: string) {
         return this.getImage(id, `econ/weapons/base_weapons/${className}`);
     }
